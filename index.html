@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EpiMethods: Final Assessment Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root { --primary: #2c3e50; --accent: #3498db; --success: #27ae60; --bg: #f4f6f8; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 850px; margin: 0 auto; padding: 20px; background: var(--bg); color: #333; }
+        
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px; transition: transform 0.2s; }
+        h1 { color: var(--primary); text-align: center; margin-bottom: 10px; font-weight: 700; }
+        h2 { border-bottom: 3px solid var(--accent); padding-bottom: 10px; color: var(--accent); margin-top: 0; font-size: 1.5em; }
+        
+        .form-group { margin-bottom: 20px; border-bottom: 1px solid #f0f0f0; padding-bottom: 15px; }
+        .form-group:last-child { border-bottom: none; }
+        
+        label.q-text { display: block; font-weight: 600; margin-bottom: 10px; color: #2c3e50; font-size: 1.05em; }
+        input[type="text"], textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-family: inherit; font-size: 1em; }
+        input[type="text"]:focus, textarea:focus { border-color: var(--accent); outline: none; }
+        
+        /* Options styling */
+        .radio-group label { display: block; padding: 10px 15px; cursor: pointer; border-radius: 6px; transition: background 0.2s; margin-bottom: 5px; border: 1px solid transparent; }
+        .radio-group label:hover { background: #eef7fb; }
+        input[type="radio"] { margin-right: 10px; transform: scale(1.2); }
+        
+        button { background: var(--success); color: white; border: none; padding: 15px 30px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; margin-top: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        button:hover { background: #219150; transform: translateY(-1px); }
+        button:disabled { background: #bdc3c7; cursor: not-allowed; transform: none; box-shadow: none; }
+        button.secondary { background: #7f8c8d; }
+        
+        .hidden { display: none; }
+        .result-box { background: #d4edda; color: #155724; padding: 20px; border-radius: 6px; border: 1px solid #c3e6cb; text-align: center; font-weight: bold; }
+        .status-msg { text-align: center; margin-top: 10px; font-size: 0.9em; color: #666; font-style: italic; }
+    </style>
+</head>
+<body>
+
+    <h1>Descriptive Epidemiology</h1>
+    <p style="text-align:center; color:#7f8c8d; margin-top:-10px;">Pre-Test | Lecture | Post-Test & Handout</p>
+
+    <div id="idSection" class="card">
+        <h2>Student Identification</h2>
+        <p>Please enter your unique "Blind ID" (e.g., First 2 letters of mother's name + Last 2 digits of phone).</p>
+        <div style="margin-bottom: 15px;">
+            <label style="font-weight:bold;">Enter Self-ID:</label>
+            <input type="text" id="studentID" placeholder="Ex: MA99">
+        </div>
+        <button onclick="startPreTest()">Start Pre-Test</button>
+    </div>
+
+    <div id="preTestSection" class="card hidden">
+        <h2>Pre-Test</h2>
+        <form id="preForm"><div id="preQuestions"></div></form>
+        <button id="btnPre" onclick="submitPreTest()">Submit Pre-Test</button>
+        <div id="preStatus" class="status-msg"></div>
+    </div>
+
+    <div id="intermissionSection" class="card hidden">
+        <h2>Submission Successful</h2>
+        <div class="result-box">
+            Please wait for the lecture to complete.<br>
+            Do not refresh this page.
+        </div>
+        <br>
+        <button onclick="startPostTest()" class="secondary">Start Post-Test</button>
+    </div>
+
+    <div id="postTestSection" class="card hidden">
+        <h2>Post-Test & Reflection</h2>
+        <form id="postForm">
+            <div id="postQuestions"></div>
+            
+            <h2 style="margin-top:40px; border-color:#f39c12; color:#d35400;">Self-Reflection</h2>
+            <div class="form-group">
+                <label style="font-weight:bold;">1. What is the most important concept you learned today?</label>
+                <textarea id="reflection1" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label style="font-weight:bold;">2. Which topic is still confusing or needs more practice?</label>
+                <textarea id="reflection2" rows="3"></textarea>
+            </div>
+        </form>
+        <button id="btnPost" onclick="submitPostTest()">Submit & Download Handout</button>
+        <div id="postStatus" class="status-msg"></div>
+    </div>
+
+<script>
+    // ================= CONFIGURATION =================
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwL0TE0oG8QAs1EW1Lc_hBLznVhlxR6mbNbJcBQYIne5VpJeO7dcCGQ1l_WsBEuOlyz/exec"; // <--- PASTE YOUR URL HERE
+    // =================================================
+
+    // --- DATA ---
+    const questions = [
+        { q: "1. Descriptive epidemiology principally studies the distribution of disease by:", options: ["Agent, Host, Environment", "Time, Place, Person", "Virus, Bacteria, Parasite", "Clinical severity"], correct: 1 },
+        { q: "2. Which equation correctly represents the relationship between Prevalence (P), Incidence (I), and Duration (D)?", options: ["P = I / D", "I = P x D", "P = I x D", "D = I x P"], correct: 2 },
+        { q: "3. In an epidemic curve, a sharp rise and rapid decline, with all cases occurring within one incubation period, suggests:", options: ["Propagated epidemic", "Point source epidemic", "Continuous common source", "Secular trend"], correct: 1 },
+        { q: "4. A cross-sectional study is often compared to:", options: ["A motion picture (film)", "A photograph (snapshot)", "A diary entry", "A forecast"], correct: 1 },
+        { q: "5. The primary objective of descriptive epidemiology is to:", options: ["Test an hypothesis", "Formulate an hypothesis", "Confirm causality", "Treat disease"], correct: 1 },
+        { q: "6. Which famous 'Spot Map' study helped hypothesize that Cholera was water-borne?", options: ["James Lind (Scurvy)", "John Snow (Golden Square)", "Doll & Hill (Smoking)", "Edward Jenner (Smallpox)"], correct: 1 },
+        { q: "7. 'Bimodality' in an age-incidence curve (e.g., Hodgkin's disease) typically indicates:", options: ["The disease is fatal", "Two distinct sets of causal factors", "Treatment is working", "Poor data collection"], correct: 1 },
+        { q: "8. In migrant studies, if the disease rate of migrants approaches that of the host country, it suggests:", options: ["Genetic factors are dominant", "Environmental factors are dominant", "The disease is infectious", "No association"], correct: 1 },
+        { q: "9. What is a major limitation of cross-sectional studies regarding causality?", options: ["Too expensive", "Cannot determine time sequence", "Requires too many people", "Only for rare diseases"], correct: 1 },
+        { q: "10. In the study of 'Place', international variations are most useful for:", options: ["Identifying political boundaries", "Generating hypotheses about environment/genetics", "Calculating costs", "Hospital allocation"], correct: 1 }
+    ];
+
+    // DEFINITIONS + CHART DATA
+    const concepts = [
+        { 
+            title: "1. Point Source Epidemic",
+            desc: "Sharp rise, distinct peak, rapid fall. All cases occur within one incubation period (e.g., Food poisoning at a wedding).",
+            labels: "Hours",
+            data: [0, 2, 15, 45, 60, 25, 8, 2, 0]
+        },
+        { 
+            title: "2. Continuous Common Source",
+            desc: "Rise is sharp but the curve plateaus (does not fall immediately) because exposure persists (e.g., Contaminated well water).",
+            labels: "Days",
+            data: [2, 10, 35, 38, 40, 42, 39, 41, 38]
+        },
+        { 
+            title: "3. Propagated Epidemic",
+            desc: "Person-to-person transmission. Multiple waves/peaks, each often larger than the last (e.g., Measles outbreak).",
+            labels: "Weeks",
+            data: [1, 0, 3, 1, 0, 12, 5, 2, 35]
+        },
+        { 
+            title: "4. Seasonal Trend",
+            desc: "Predictable annual variation driven by environmental conditions or vectors (e.g., Dengue peaks post-monsoon; Flu in winter).",
+            labels: "Months",
+            data: [10, 12, 15, 20, 60, 90, 85, 40, 15]
+        },
+        { 
+            title: "5. Cyclical Trend",
+            desc: "Recurrent fluctuations over a period > 1 year. Driven by herd immunity cycles (e.g., Measles every 2-3 years pre-vaccine).",
+            labels: "Years",
+            data: [80, 20, 30, 95, 25, 30, 85, 20, 25]
+        },
+        { 
+            title: "6. Secular Trend (Decreasing)",
+            desc: "Consistent long-term decline over decades due to interventions (e.g., Polio, Tuberculosis).",
+            labels: "Decades",
+            data: [100, 85, 60, 40, 20, 5, 1, 0]
+        },
+        { 
+            title: "7. Secular Trend (Increasing)",
+            desc: "Consistent long-term increase over decades due to lifestyle changes (e.g., Diabetes, Lung Cancer).",
+            labels: "Decades",
+            data: [5, 12, 25, 40, 65, 75, 85, 95]
+        }
+    ];
+
+    let preScore = 0;
+    let postScore = 0;
+
+    // --- LOGIC ---
+
+    function renderQuestions(containerId, prefix) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = "";
+        questions.forEach((item, index) => {
+            const qDiv = document.createElement("div");
+            qDiv.className = "form-group";
+            qDiv.innerHTML = `<label class="q-text">${item.q}</label>`;
+            
+            const optDiv = document.createElement("div");
+            optDiv.className = "radio-group";
+            
+            item.options.forEach((opt, optIndex) => {
+                optDiv.innerHTML += `
+                    <label>
+                        <input type="radio" name="${prefix}_q${index}" value="${optIndex}">
+                        ${opt}
+                    </label>`;
+            });
+            qDiv.appendChild(optDiv);
+            container.appendChild(qDiv);
+        });
+    }
+
+    function startPreTest() {
+        const id = document.getElementById("studentID").value;
+        if(!id) return alert("Please enter a Self-ID.");
+        renderQuestions("preQuestions", "pre");
+        document.getElementById("idSection").classList.add("hidden");
+        document.getElementById("preTestSection").classList.remove("hidden");
+        window.scrollTo(0,0);
+    }
+
+    function submitPreTest() {
+        // 1. VALIDATION: Check if all answered
+        const answers = getAnswers("pre");
+        if (answers.includes("")) {
+            alert("Please answer all questions before submitting.");
+            return;
+        }
+
+        // 2. Score
+        preScore = 0;
+        questions.forEach((item, index) => {
+            const selected = document.querySelector(`input[name="pre_q${index}"]:checked`);
+            if(selected && parseInt(selected.value) === item.correct) preScore++;
+        });
+
+        // 3. UI
+        document.getElementById("btnPre").disabled = true;
+        document.getElementById("preStatus").innerText = "Saving results...";
+
+        // 4. Send
+        const payload = {
+            type: "pre",
+            id: document.getElementById("studentID").value,
+            answers: answers,
+            score: preScore
+        };
+
+        sendData(payload, () => {
+            document.getElementById("preTestSection").classList.add("hidden");
+            document.getElementById("intermissionSection").classList.remove("hidden");
+            window.scrollTo(0,0);
+        });
+    }
+
+    function startPostTest() {
+        renderQuestions("postQuestions", "post");
+        document.getElementById("intermissionSection").classList.add("hidden");
+        document.getElementById("postTestSection").classList.remove("hidden");
+        window.scrollTo(0,0);
+    }
+
+    async function submitPostTest() {
+        // 1. VALIDATION
+        const answers = getAnswers("post");
+        if (answers.includes("")) {
+            alert("Please answer all questions before submitting.");
+            return;
+        }
+
+        // 2. Score
+        postScore = 0;
+        questions.forEach((item, index) => {
+            const selected = document.querySelector(`input[name="post_q${index}"]:checked`);
+            if(selected && parseInt(selected.value) === item.correct) postScore++;
+        });
+
+        // 3. UI & VISUAL FEEDBACK
+        document.getElementById("btnPost").disabled = true;
+        document.getElementById("postStatus").innerText = "Generating Handout & Saving...";
+        
+        showFeedback("post"); // Highlights answers
+
+        // 4. Send & Generate
+        const id = document.getElementById("studentID").value;
+        const ref1 = document.getElementById("reflection1").value || "N/A";
+        const ref2 = document.getElementById("reflection2").value || "N/A";
+
+        const payload = {
+            type: "post",
+            id: id,
+            answers: answers,
+            score: postScore,
+            ref1: ref1,
+            ref2: ref2
+        };
+
+        sendData(payload, null);
+        generatePDF(id, preScore, postScore, ref1, ref2);
+    }
+
+    // HELPER: Highlight Correct/Incorrect Answers
+    function showFeedback(prefix) {
+        questions.forEach((q, i) => {
+            const radios = document.getElementsByName(`${prefix}_q${i}`);
+            const selected = document.querySelector(`input[name="${prefix}_q${i}"]:checked`);
+            
+            for(let radio of radios) {
+                const parent = radio.parentElement;
+                const val = parseInt(radio.value);
+                
+                // Highlight Correct (Green)
+                if(val === q.correct) {
+                    parent.style.backgroundColor = "#d4edda"; 
+                    parent.style.border = "1px solid #28a745";
+                    parent.style.color = "#155724";
+                    parent.innerHTML += " <b>(Correct)</b>";
+                }
+                
+                // Highlight Incorrect User Choice (Red)
+                if(selected && parseInt(selected.value) === val && val !== q.correct) {
+                    parent.style.backgroundColor = "#f8d7da";
+                    parent.style.border = "1px solid #dc3545";
+                    parent.style.color = "#721c24";
+                    parent.innerHTML += " <b>(Your Answer)</b>";
+                }
+                
+                radio.disabled = true; // Lock
+            }
+        });
+    }
+
+    function getAnswers(prefix) {
+        let ans = [];
+        questions.forEach((q, i) => {
+            const el = document.querySelector(`input[name="${prefix}_q${i}"]:checked`);
+            ans.push(el ? el.value : "");
+        });
+        return ans;
+    }
+
+    function sendData(data, callback) {
+        if(SCRIPT_URL === "YOUR_GOOGLE_SCRIPT_URL_HERE" || SCRIPT_URL === "") {
+            console.warn("No Script URL provided. Offline Mode.");
+            if(callback) callback();
+            return;
+        }
+
+        fetch(SCRIPT_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data)
+        }).then(() => {
+            if(callback) callback();
+        }).catch(e => {
+            console.error(e);
+            if(callback) callback();
+        });
+    }
+
+    // --- PDF GENERATION ENGINE ---
+    function generatePDF(id, pre, post, r1, r2) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        const pageW = doc.internal.pageSize.getWidth();
+        const margin = 20;
+        const maxW = pageW - (margin * 2);
+
+        // --- HEADER ---
+        doc.setFontSize(22);
+        doc.setTextColor(44, 62, 80);
+        doc.text("Descriptive Epidemiology Handout", margin, 20);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Student ID: ${id} | Date: ${new Date().toLocaleDateString()}`, margin, 30);
+
+        // --- SCORES ---
+        doc.setDrawColor(200);
+        doc.line(margin, 35, pageW - margin, 35);
+        doc.setFontSize(14);
+        doc.setTextColor(0);
+        doc.text("1. Assessment Performance", margin, 45);
+        
+        doc.setFontSize(12);
+        doc.text(`Pre-Test Score:  ${pre} / 10`, margin, 55);
+        doc.text(`Post-Test Score: ${post} / 10`, margin, 62);
+        
+        // --- REFLECTION ---
+        doc.line(margin, 70, pageW - margin, 70);
+        doc.setFontSize(14);
+        doc.text("2. Your Reflection", margin, 80);
+        
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text("Key Takeaway:", margin, 90);
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(10);
+        const splitR1 = doc.splitTextToSize(r1, maxW);
+        doc.text(splitR1, margin, 95);
+        
+        let y = 95 + (splitR1.length * 5) + 5;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.text("Still Confusing:", margin, y);
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(10);
+        const splitR2 = doc.splitTextToSize(r2, maxW);
+        doc.text(splitR2, margin, y + 5);
+        
+        y += (splitR2.length * 5) + 15;
+
+        // --- KEY CONCEPTS & CHARTS ---
+        if (y > 220) { doc.addPage(); y = 20; }
+        
+        doc.setDrawColor(200);
+        doc.line(margin, y, pageW - margin, y);
+        y += 10;
+        
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.setTextColor(41, 128, 185);
+        doc.text("3. Key Concepts & Trends", margin, y);
+        doc.setTextColor(0);
+        y += 15;
+
+        // Loop through concepts
+        concepts.forEach((c, i) => {
+            // Check for space (Needs approx 60mm height)
+            if (y + 60 > 280) { doc.addPage(); y = 20; }
+
+            // 1. Text Definition
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(11);
+            doc.text(c.title, margin, y);
+            
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(10);
+            const descLines = doc.splitTextToSize(c.desc, 90); // Left column text
+            doc.text(descLines, margin, y + 6);
+
+            // 2. Draw Chart (Right side)
+            // x, y, width, height
+            drawChart(doc, 120, y - 2, 70, 40, c.data, c.labels);
+
+            // Move cursor down
+            const textHeight = descLines.length * 5;
+            y += Math.max(textHeight + 15, 50); // Ensure chart fits
+        });
+
+        doc.save(`Epi_Handout_${id}.pdf`);
+        alert("Success! PDF Handout downloaded.");
+    }
+
+    // Helper to draw the mini charts
+    function drawChart(doc, x, y, w, h, data, label) {
+        // Axis lines
+        doc.setDrawColor(100);
+        doc.setLineWidth(0.3);
+        doc.line(x, y+h, x+w, y+h); // X axis
+        doc.line(x, y, x, y+h);     // Y axis
+
+        const max = Math.max(...data);
+        const barW = (w - 5) / data.length;
+        
+        // Bars
+        doc.setFillColor(231, 76, 60); // Red
+        const points = []; // For smooth line
+
+        data.forEach((val, i) => {
+            if(val > 0) {
+                const barH = (val / max) * (h - 5);
+                const barX = x + 2 + (i * barW);
+                const barY = y + h - barH;
+                
+                doc.rect(barX, barY, barW - 1, barH, "F");
+                points.push({ x: barX + barW/2, y: barY });
+            } else {
+                points.push({ x: x + 2 + (i * barW) + barW/2, y: y + h });
+            }
+        });
+
+        // Smooth Line (Blue)
+        doc.setDrawColor(52, 152, 219);
+        doc.setLineWidth(1);
+        for(let i=0; i < points.length - 1; i++) {
+            doc.line(points[i].x, points[i].y, points[i+1].x, points[i+1].y);
+        }
+
+        // X-Axis Label
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.text(label, x + w/2, y + h + 4, { align: "center" });
+        doc.setTextColor(0);
+    }
+</script>
+</body>
+</html>
